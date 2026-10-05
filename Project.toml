@@ -1,7 +1,7 @@
 name = "VoronoiMeshes"
 uuid = "978c199f-fe38-4011-9fe6-317bc1cdd350"
 version = "0.1.0"
-authors = ["Felipe A. V. de Bragança Alves <favbalves@gmail.com> and contributors"]
+authors = ["Felipe A. V. de Bragança Alves <github@mail.favba.org> and contributors"]
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

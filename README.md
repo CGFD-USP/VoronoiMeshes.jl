@@ -5,8 +5,6 @@
 
 VoronoiMeshes.jl provides tools to create, inspect and save biperiodic planar and spherical Voronoi meshes (including centroidal/Lloyd methods and utilities to work with their dual Delaunay triangulations).
 
-Main developer: Felipe A. V. de Bragança Alves <favbalves@gmail.com>
-
 ![Bi-periodic planar mesh creation](./assets/mesh_creation_15fps_748x551.avif)
 
 ## Install Guide 
@@ -17,7 +15,7 @@ Using Julia version 1.11 or higher:
 ```julia
 import Pkg
 Pkg.activate(temp=true)
-Pkg.add(url="https://github.com/favba/VoronoiMeshes.jl.git")
+Pkg.add(url="https://github.com/CGFD-USP/VoronoiMeshes.jl.git")
 
 # Optional packages, for grid creation; plotting; import / export to NetCDF; and import / export to VTK.
 Pkg.add("DelaunayTriangulation")
@@ -32,8 +30,8 @@ If using Julia v1.10, then the unregistered dependencies must be explicitly inst
 import Pkg
 Pkg.activate(temp=true)
 Pkg.add(url="https://github.com/favba/TensorsLite.jl.git")
-Pkg.add(url="https://github.com/favba/TensorsLiteGeometry.jl.git")
-Pkg.add(url="https://github.com/favba/VoronoiMeshes.jl.git")
+Pkg.add(url="https://github.com/CGFD-USP/TensorsLiteGeometry.jl.git")
+Pkg.add(url="https://github.com/CGFD-USP/VoronoiMeshes.jl.git")
 
 # Optional packages, for grid creation; plotting; import / export to NetCDF; and import / export to VTK.
 Pkg.add("DelaunayTriangulation")
@@ -49,7 +47,7 @@ The package and the dependencies will be ported into registered packages soon.
 With Julia v1.11 or higher is sufficient to simply clone the repository:
 
 ```bash
-git clone git@github.com:favba/VoronoiMeshes.jl.git
+git clone git@github.com:CGFD-USP/VoronoiMeshes.jl.git
 ```
 
 The package and the dependencies will be ported into registered packages soon.
@@ -57,9 +55,9 @@ For developers using Julia v1.10, the environment must be explicitly constructed
 
 Assuming a common folder for the packages and the dependencies:
 ```bash
-git clone git@github.com:favba/VoronoiMeshes.jl.git
+git clone git@github.com:CGFD-USP/VoronoiMeshes.jl.git
 git clone git@github.com:favba/TensorsLite.jl.git
-git clone git@github.com:favba/TensorsLiteGeometry.jl.git
+git clone git@github.com:CGFD-USP/TensorsLiteGeometry.jl.git
 ```
 
 Create project (manifests) for `VoronoiMeshes` and its unregistered dependencies in the following order:
