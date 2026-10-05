@@ -21,8 +21,8 @@ ReadVTK = "dc215faf-f008-4882-a9f7-a79a826fadc3"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [sources]
-TensorsLite = {rev = "main", url = "https://github.com/favba/TensorsLite.jl"}
-TensorsLiteGeometry = {rev = "main", url = "https://github.com/favba/TensorsLiteGeometry.jl"}
+TensorsLite = { rev = "main", url = "https://github.com/favba/TensorsLite.jl" }
+TensorsLiteGeometry = { rev = "main", url = "https://github.com/CGFD-USP/TensorsLiteGeometry.jl" }
 
 [extensions]
 DelaunayTriangulationExt = ["DelaunayTriangulation"]

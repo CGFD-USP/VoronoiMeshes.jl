@@ -17,6 +17,6 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 Zeros = "bd1ec220-6eb4-527a-9b49-e79c3db6233b"
 
 [sources]
-TensorsLite = {url = "https://github.com/favba/TensorsLite.jl"}
-TensorsLiteGeometry = {url = "https://github.com/favba/TensorsLiteGeometry.jl"}
+TensorsLite = {rev = "main", url = "https://github.com/favba/TensorsLite.jl"}
+TensorsLiteGeometry = {rev = "main", url = "https://github.com/CGFD-USP/TensorsLiteGeometry.jl"}
 VoronoiMeshes = {path = ".."}
