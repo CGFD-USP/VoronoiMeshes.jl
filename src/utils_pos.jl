@@ -511,3 +511,112 @@ function surface_integral(m::AbstractVoronoiMesh, func::F, args::Vararg{Abstract
 end
 
 surface_integral(m::AbstractVoronoiMesh, arg::AbstractVector) = surface_integral(m, identity, arg)
+
+
+"""
+    create_ghost_periodic_voronoi_vertices(mesh::AbstractVoronoiMesh{false})
+
+Create Voronoi cell vertex and topology arrays, adding ghost vertices for periodic boundaries.
+Returns (vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, index_to_ghost_dict, ghost_to_index_vector).
+"""
+function create_ghost_periodic_voronoi_vertices(mesh::AbstractVoronoiMesh{false})
+
+    # Mesh info
+    vert_pos = mesh.vertices.position # Voronoi cell vertices
+    polygon_pos = mesh.cells.position # Voronoi cell centers
+    verticesOnPolygon = mesh.cells.vertices # Indexes of vertices per Voronoi cell
+
+    return create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, mesh.x_period, mesh.y_period)
+end
+
+
+"""
+    create_ghost_periodic_triangulation_vertices(mesh::AbstractVoronoiMesh{false})
+
+Create Delaunay triangulation vertex and topology arrays, adding ghost vertices for periodic boundaries.
+Returns (vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, index_to_ghost_dict, ghost_to_index_vector).
+"""
+function create_ghost_periodic_triangulation_vertices(mesh::AbstractVoronoiMesh{false})
+
+    # Mesh info
+    vert_pos = mesh.cells.position # Triangle circumcenters
+    polygon_pos = mesh.vertices.position # Triangle vertices
+    verticesOnPolygon = mesh.vertices.cells # Indexes of vertices per triangle
+
+    return create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, mesh.x_period, mesh.y_period)
+end
+
+
+"""
+    create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, x_period, y_period)
+
+Helper to add ghost vertices for periodic boundaries to a set of polygons.
+Returns (vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, index_to_ghost_dict, ghost_to_index_vector).
+"""
+function create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, x_period, y_period)
+
+    # Ghost info
+    vertices_with_ghosts = copy(vert_pos)
+    ivertices_with_ghosts = length(vert_pos) + 1
+
+    verticesOnPolygon_with_ghosts = [Vector(v) for v in verticesOnPolygon]
+
+    ghost_dict = Dict{Int,Vector{Int}}() # Save ghost index for each original vertex: ghost_dict[original_index] -> [ghost_index1, ghost_index2,..]
+    ghost_to_index_vector = collect(1:length(vert_pos)) # Inverse mapping of ghost_dict: ghost_to_index_vector[ghost_index] -> original_index
+
+    for i in eachindex(polygon_pos)
+
+        ppos = polygon_pos[i]
+        vert_on_pol = verticesOnPolygon[i]
+        vert_on_pol_w_ghost = verticesOnPolygon_with_ghosts[i]
+
+        for j in eachindex(vert_on_pol)
+
+            original_index = vert_on_pol[j]
+            vpos = closest(ppos, vert_pos[original_index], x_period, y_period)
+
+            if norm(vpos - vert_pos[original_index]) > 0.4 * min(x_period, y_period)
+                if !haskey(ghost_dict, original_index) #first time we see this ghost
+
+                    ghost_dict[original_index] = [ivertices_with_ghosts]
+                    vert_on_pol_w_ghost[j] = ivertices_with_ghosts
+                    push!(vertices_with_ghosts, vpos)
+                    push!(ghost_to_index_vector, ivertices_with_ghosts)
+                    ivertices_with_ghosts += 1
+                    #println(i, " ", j, " Ghost found:", vpos, " for original vertex ", original_index, " at ", vert_pos[original_index], " Dict:", d[original_index])
+
+                else #in this case a key already exists, check if this vertex is close or not to existing ghosts
+
+                    ghost_exists = false
+                    for k in ghost_dict[original_index]
+                        if norm(vpos - vertices_with_ghosts[k]) < 1e-8 * min(x_period, y_period)
+
+                            # use the existing ghost vertex
+                            vert_on_pol_w_ghost[j] = k
+                            ghost_exists = true
+
+                        end
+                    end
+
+                    #New ghost vertex needed
+                    if !ghost_exists
+
+                        # add new ghost vertex
+                        push!(ghost_dict[original_index], ivertices_with_ghosts)
+                        vert_on_pol_w_ghost[j] = ivertices_with_ghosts
+                        push!(vertices_with_ghosts, vpos)
+                        push!(ghost_to_index_vector, ivertices_with_ghosts)
+                        ivertices_with_ghosts += 1
+
+                    end
+                end
+            end
+        end
+    end
+
+    n_ghosts = length(vertices_with_ghosts) - length(vert_pos)
+
+    return vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, ghost_to_index_vector
+
+end
+

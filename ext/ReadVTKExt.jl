@@ -22,7 +22,7 @@ using ReadVTK.VTKBase
 function VoronoiMeshes.read_from_vtu(filename::String)
 
     # If a single filename was given, search for the 2 associated grids (vor and tri)
-    println("Attempt to read VTU file with base name: ", filename)
+    @info string("Attempt to read VTU file with base name: ", filename)
 
     name, ext = Base.Filesystem.splitext(filename)
 
@@ -40,7 +40,7 @@ end
 function VoronoiMeshes.read_from_vtu(filename_vor::String, filename_tri::String)
 
     if isfile(filename_vor) && isfile(filename_tri)
-        println("Loading files: ", filename_vor, " and ", filename_tri)
+        @info string("Loading files: ", filename_vor, " and ", filename_tri)
     else
         error("Couldn't find files: ", filename_vor, " and ", filename_tri)
     end
@@ -161,7 +161,7 @@ function read_mesh_from_vtu_data(::Val{maxEdges}, vtk_vor, vtk_tri) where {maxEd
     ))
 
     mesh = VoronoiMeshes.VoronoiMesh(diagram)
-    println("VoronoiMesh loaded from VTU files with ", mesh.cells.n, " cells, ", mesh.vertices.n, " vertices")
+    @info string("VoronoiMesh loaded from VTU files with ", mesh.cells.n, " cells, ", mesh.vertices.n, " vertices")
     return mesh
 end
 

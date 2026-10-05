@@ -19,6 +19,8 @@ export save
 export circular_refinement_function, y_refinement_function, x_refinement_function
 export fix_diagram!, create_planar_hex_mesh, scale!
 
+export create_ghost_periodic_voronoi_vertices, create_ghost_periodic_triangulation_vertices
+
 # NCDatasetsKExt functions
 export save_to_netcdf, save_to_netcdf!, read_from_netcdf, write_field_to_netcdf!, write_field_to_netcdf
 
