@@ -22,7 +22,7 @@ using WriteVTK.VTKBase
 
 Export the Voronoi mesh to a VTU file, handling periodic ghost vertices.
 """
-function save_voronoi_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false}, fields::NamedTuple = ())
+function save_voronoi_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false}, fields::NamedTuple = NamedTuple())
 
     # Here the vertices are Voronoi cell vertices and the polygons are the Voronoi cells
     vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, vertex_fields_indices =
