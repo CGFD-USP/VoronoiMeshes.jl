@@ -22,10 +22,10 @@ using WriteVTK.VTKBase
 
 Export the Voronoi mesh to a VTU file, handling periodic ghost vertices.
 """
-function save_voronoi_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false})
+function save_voronoi_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false}, fields::NamedTuple = ())
 
     # Here the vertices are Voronoi cell vertices and the polygons are the Voronoi cells
-    vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, _ =
+    vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, vertex_fields_indices =
         create_ghost_periodic_voronoi_vertices(mesh)
 
     n_polys = mesh.cells.n #number of Voronoi cells
@@ -67,21 +67,39 @@ function save_voronoi_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false}
         vtk["XPeriod"] = mesh.x_period
         vtk["YPeriod"] = mesh.y_period
         vtk["NumPeriodicGhosts"] = n_ghosts
+        write_to_voronoi_vtu!(vtk, mesh, vertex_fields_indices, fields)
     end
 
     return saved_file
 end
 
+write_to_voronoi_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, cIdx, fields::@NamedTuple{}) = nothing
+
+function write_to_voronoi_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, vIdx, fields::NamedTuple{nameT, Tuple{T}}) where {nameT, T<:AbstractVector}
+    data = fields[1]
+    name = string(nameT[1])
+    ld = length(data)
+    if ld == mesh.vertices.n
+        vtk[name, VTKPointData()] = transform_data(data, vIdx)
+    elseif ld == mesh.cells.n
+        vtk[name, VTKCellData()] = transform_data(data)
+    end
+end
+
+function write_to_voronoi_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, cIdx, fields::NamedTuple)
+    write_to_voronoi_vtu!(vtk, mesh, cIdx, Base.front(fields))
+    write_to_voronoi_vtu!(vtk, mesh, cIdx, Base.tail(fields))
+end
 
 """
     save_triangulation_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false})
 
 Export the Delaunay triangulation (dual mesh) to a VTU file, handling periodic ghost vertices.
 """
-function save_triangulation_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false})
+function save_triangulation_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{false}, fields::NamedTuple = NamedTuple())
 
     # Here the vertices are cell centers and the polygons are the triangles
-    vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, _ =
+    vertices_with_ghosts, verticesOnPolygon_with_ghosts, n_ghosts, ghost_dict, cell_field_indices =
         create_ghost_periodic_triangulation_vertices(mesh)
 
     n_polys = mesh.vertices.n #number of mesh triangles
@@ -124,9 +142,34 @@ function save_triangulation_to_vtu(file_name::String, mesh::AbstractVoronoiMesh{
         vtk["XPeriod"] = mesh.x_period
         vtk["YPeriod"] = mesh.y_period
         vtk["NumPeriodicGhosts"] = n_ghosts
+        write_to_triangulation_vtu!(vtk, mesh, cell_field_indices, fields)
     end
 
     return saved_file
 end
+
+write_to_triangulation_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, cIdx, fields::@NamedTuple{}) = nothing
+
+function write_to_triangulation_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, cIdx, fields::NamedTuple{nameT, Tuple{T}}) where {nameT, T<:AbstractVector}
+    data = fields[1]
+    ld = length(data)
+    name = string(nameT[1])
+    if ld == mesh.cells.n
+        vtk[name, VTKPointData()] = transform_data(data, cIdx)
+    elseif ld == mesh.vertices.n
+        vtk[name, VTKCellData()] = transform_data(data)
+    end
+end
+
+function write_to_triangulation_vtu!(vtk, mesh::AbstractVoronoiMesh{false}, cIdx, fields::NamedTuple)
+    write_to_triangulation_vtu!(vtk, mesh, cIdx, Base.front(fields))
+    write_to_triangulation_vtu!(vtk, mesh, cIdx, Base.tail(fields))
+end
+
+transform_data(data::AbstractVector) = data
+transform_data(data::AbstractVector, Idx) = view(data, Idx)
+
+transform_data(data::VecArray) = (data.x, data.y)
+transform_data(data::VecArray, Idx) = (view(data.x, Idx), view(data.y, Idx))
 
 end # module VTKExt
