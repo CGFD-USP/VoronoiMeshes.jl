@@ -1,7 +1,7 @@
 # VoronoiMeshes
 
-[![Build Status](https://github.com/favba/VoronoiMeshes.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/favba/VoronoiMeshes.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/favba/VoronoiMeshes.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/favba/VoronoiMeshes.jl)
+[![Build Status](https://github.com/CGFD-USP/VoronoiMeshes.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/CGFD-USP/VoronoiMeshes.jl/actions/workflows/CI.yml?query=branch%3Amain)
+<!-- [![Coverage](https://codecov.io/gh/favba/VoronoiMeshes.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/favba/VoronoiMeshes.jl) -->
 
 VoronoiMeshes.jl provides tools to create, inspect and save biperiodic planar and spherical Voronoi meshes (including centroidal/Lloyd methods and utilities to work with their dual Delaunay triangulations).
 
