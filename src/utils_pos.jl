@@ -581,7 +581,7 @@ function create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, 
                     ghost_dict[original_index] = [ivertices_with_ghosts]
                     vert_on_pol_w_ghost[j] = ivertices_with_ghosts
                     push!(vertices_with_ghosts, vpos)
-                    push!(ghost_to_index_vector, ivertices_with_ghosts)
+                    push!(ghost_to_index_vector, original_index)
                     ivertices_with_ghosts += 1
                     #println(i, " ", j, " Ghost found:", vpos, " for original vertex ", original_index, " at ", vert_pos[original_index], " Dict:", d[original_index])
 
@@ -605,7 +605,7 @@ function create_ghost_periodic_points(vert_pos, polygon_pos, verticesOnPolygon, 
                         push!(ghost_dict[original_index], ivertices_with_ghosts)
                         vert_on_pol_w_ghost[j] = ivertices_with_ghosts
                         push!(vertices_with_ghosts, vpos)
-                        push!(ghost_to_index_vector, ivertices_with_ghosts)
+                        push!(ghost_to_index_vector, original_index)
                         ivertices_with_ghosts += 1
 
                     end
