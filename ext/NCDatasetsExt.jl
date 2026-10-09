@@ -509,8 +509,10 @@ include("save_to_netcdf.jl")
     sdist = string(bdir, "../test/mesh_distorted_issues.nc")
     ssphe2 = string(bdir , "../test/x1.4002.grid.nc")
 
-    stsave = string(bdir, "test_save.nc")
-    stsave2 = string(bdir, "test_save2.nc")
+    # outputs in a temporary folder, since the package folder may be read-only
+    tdir = mktempdir()
+    stsave = joinpath(tdir, "test_save.nc")
+    stsave2 = joinpath(tdir, "test_save2.nc")
 
     @compile_workload begin
         m_iso = VoronoiMesh(siso)
@@ -521,10 +523,7 @@ include("save_to_netcdf.jl")
         save(stsave, m_iso; force3D=true, write_computed=true)
         save(stsave2, m_sphe; write_computed=true)
     end
-    Base.Filesystem.rm(string(bdir, "test_save.nc"))
-    Base.Filesystem.rm(string(bdir, "test_save.graph.info"))
-    Base.Filesystem.rm(string(bdir, "test_save2.nc"))
-    Base.Filesystem.rm(string(bdir, "test_save2.graph.info"))
+    Base.Filesystem.rm(tdir; recursive=true)
 end
 
 end # module
