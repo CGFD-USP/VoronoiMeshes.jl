@@ -451,6 +451,84 @@ Fix any elements in `d.cellsOnVertex` and `d.verticesOnCell` that is not in coun
 """
 fix_diagram!(d::VoronoiDiagram) = (fix_diagram!(get_diagram(d)); d )
 
+function fix_cell_vertices!(verticesOnCell, edgesOnCell, verticesOnEdge)
+    data = verticesOnCell.data
+    @parallel for c in eachindex(edgesOnCell)
+        @inbounds begin
+            eoc = edgesOnCell[c]
+            l = length(eoc)
+            vertices = eltype(verticesOnCell)()
+            for n in Base.OneTo(l)
+                v1, v2 = verticesOnEdge[eoc[n]]
+                next = verticesOnEdge[eoc[mod1(n + 1, l)]]
+                vertices = push(vertices, (v1 == next[1] || v1 == next[2]) ? v1 : v2)
+            end
+            data[c] = fixedvector(vertices)
+        end
+    end
+    return verticesOnCell
+end
+
+function reverse_vertex_cells!(cellsOnVertex, inverted, info::VertexInfo)
+    @parallel for v in inverted
+        @inbounds cellsOnVertex[v] = reverse(cellsOnVertex[v])
+    end
+    for field in (:kiteAreas, :kiteAreasMimetic)
+        if isdefined(info, field)
+            kites = getfield(info, field)
+            @parallel for v in inverted
+                @inbounds kites[v] = reverse(kites[v])
+            end
+        end
+    end
+    return cellsOnVertex
+end
+
+function fix_vertex_edges!(edgesOnVertex, cellsOnVertex, cellsOnEdge, info::VertexInfo)
+    signs = isdefined(info, :edgesSign) ? info.edgesSign : nothing
+    @parallel for v in eachindex(edgesOnVertex)
+        @inbounds begin
+            eov = edgesOnVertex[v]
+            cov = cellsOnVertex[v]
+            positions = ntuple(Val(3)) do n
+                a, b = cov[mod1(n - 1, 3)], cov[n]
+                findfirst(e -> (c = cellsOnEdge[e]; (c[1] == a && c[2] == b) || (c[1] == b && c[2] == a)), eov)
+            end
+            if !any(isnothing, positions)
+                edgesOnVertex[v] = typeof(eov)(map(i -> eov[i], positions))
+                isnothing(signs) || (signs[v] = typeof(signs[v])(map(i -> signs[v][i], positions)))
+            end
+        end
+    end
+    return edgesOnVertex
+end
+
+vertex_cells_inverted(m::AbstractVoronoiMesh{true}) =
+    check_if_counter_clockwise(m.sphere_radius, m.vertices.position, m.vertices.cells, m.cells.position)
+vertex_cells_inverted(m::AbstractVoronoiMesh{false}) =
+    check_if_counter_clockwise(m.vertices.position, m.vertices.cells, m.cells.position, m.x_period, m.y_period)
+
+"""
+    fix_ordering!(m::AbstractVoronoiMesh) -> m
+
+Reorder `m.cells.vertices`, `m.vertices.cells` and `m.vertices.edges` to the ordering checked by
+`check_cell_indexing` and `check_vertex_indexing`, for meshes read as stored from files with
+another one (NCAR's MPAS grids put edge `n` of a cell between its vertices `n` and `n+1`, and
+order the cells of a vertex either way): `cells.vertices[c][n]` becomes the vertex shared by
+`cells.edges[c][n]` and `cells.edges[c][n+1]`, `vertices.cells[v]` runs counter-clockwise, and
+`vertices.edges[v][n]` becomes the edge between `vertices.cells[v][n-1]` and `vertices.cells[v][n]`.
+Kite areas and edge signs already in `m.vertices` follow the new order. `cells.edges` must run
+counter-clockwise. `VoronoiMesh(file)` applies it unless called with `fix_ordering = false`.
+"""
+function fix_ordering!(m::AbstractVoronoiMesh)
+    info = getfield(m.vertices, :info)
+    fix_cell_vertices!(m.cells.vertices, m.cells.edges, m.edges.vertices)
+    inverted = vertex_cells_inverted(m)
+    isnothing(inverted) || reverse_vertex_cells!(m.vertices.cells, inverted, info)
+    fix_vertex_edges!(m.vertices.edges, m.vertices.cells, m.edges.cells, info)
+    return m
+end
+
 """
     scale!(m::AbstractVoronoiMesh, factor::Real) -> m
 

@@ -402,17 +402,19 @@ function _VoronoiMesh(ncfile::NCDatasets.NCDataset, read_computed::Bool=true)
     end
 end
 
-function VoronoiMeshes.VoronoiMesh(ncfile::NCDatasets.NCDataset; warn_issues::Bool=true, read_computed::Bool=true)
+function VoronoiMeshes.VoronoiMesh(ncfile::NCDatasets.NCDataset; warn_issues::Bool=true, read_computed::Bool=true, fix_ordering::Bool=true)
     mesh = _VoronoiMesh(ncfile, read_computed)
+    fix_ordering && fix_ordering!(mesh)
     if warn_issues
         Threads.@spawn VoronoiMeshes.warn_mesh_issues($mesh)
     end
     return mesh
 end
 
-function VoronoiMeshes.VoronoiMesh(v::Val{NE}, ncfile::NCDatasets.NCDataset; warn_issues::Bool = true, read_computed::Bool = true) where {NE}
+function VoronoiMeshes.VoronoiMesh(v::Val{NE}, ncfile::NCDatasets.NCDataset; warn_issues::Bool = true, read_computed::Bool = true, fix_ordering::Bool = true) where {NE}
     diag = VoronoiDiagram(v, ncfile)
     mesh = VoronoiMesh(Cells(diag, ncfile, read_computed), Vertices(diag, ncfile, read_computed), Edges(diag, ncfile, read_computed))
+    fix_ordering && fix_ordering!(mesh)
     if warn_issues
         Threads.@spawn VoronoiMeshes.warn_mesh_issues($mesh)
     end
@@ -482,18 +484,18 @@ for func in (:Cells, :Vertices, :Edges)
 end
 
 
-function VoronoiMeshes.read_from_netcdf(file_name::String; warn_issues::Bool = true, read_computed::Bool = true)
+function VoronoiMeshes.read_from_netcdf(file_name::String; warn_issues::Bool = true, read_computed::Bool = true, fix_ordering::Bool = true)
     f = NCDataset(file_name)
     try
-        VoronoiMeshes.VoronoiMesh(f; warn_issues = warn_issues, read_computed = read_computed)
+        VoronoiMeshes.VoronoiMesh(f; warn_issues = warn_issues, read_computed = read_computed, fix_ordering = fix_ordering)
     finally
         close(f)
     end
 end
-function VoronoiMeshes.read_from_netcdf(v::Val, file_name::String; warn_issues::Bool = true, read_computed::Bool = true)
+function VoronoiMeshes.read_from_netcdf(v::Val, file_name::String; warn_issues::Bool = true, read_computed::Bool = true, fix_ordering::Bool = true)
     f = NCDataset(file_name)
     try
-        VoronoiMeshes.VoronoiMesh(v, f; warn_issues = warn_issues, read_computed = read_computed)
+        VoronoiMeshes.VoronoiMesh(v, f; warn_issues = warn_issues, read_computed = read_computed, fix_ordering = fix_ordering)
     finally
         close(f)
     end

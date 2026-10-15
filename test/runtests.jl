@@ -173,10 +173,24 @@ end
 end
 
 @testset "Mesh checks" begin
-    @test !isnothing(check_mesh(VoronoiMesh("x1.4002.grid.nc")))
-    @test !isnothing(check_mesh(VoronoiMesh("mesh_issues.nc")))
+    @test isnothing(check_mesh(VoronoiMesh("x1.4002.grid.nc")))
+    @test !isnothing(check_mesh(VoronoiMesh("x1.4002.grid.nc"; fix_ordering = false)))
+    @test !isnothing(check_mesh(VoronoiMesh("mesh_issues.nc"; fix_ordering = false)))
     @test isnothing(check_mesh(VoronoiMesh(fix_diagram!(VoronoiDiagram("x1.4002.grid.nc")))))
     @test isnothing(check_mesh(VoronoiMesh(fix_diagram!(VoronoiDiagram("mesh_issues.nc")))))
+end
+
+@testset "Ordering of meshes read from files" begin
+    stored = VoronoiMesh("x1.4002.grid.nc"; fix_ordering = false, warn_issues = false)
+    fixed = VoronoiMesh("x1.4002.grid.nc"; warn_issues = false)
+    kite(m, v, c) = VoronoiMeshes.select_kite_area(m.vertices.kiteAreas, m.vertices.cells, v, c)
+    @test all(v -> all(c -> kite(fixed, v, c) == kite(stored, v, c), stored.vertices.cells[v]), 1:stored.vertices.n)
+    @test all(v -> Set(fixed.vertices.edges[v]) == Set(stored.vertices.edges[v]), 1:stored.vertices.n)
+    @test all(c -> Set(fixed.cells.vertices[c]) == Set(stored.cells.vertices[c]), 1:stored.cells.n)
+    rebuilt = VoronoiMesh(fix_diagram!(VoronoiDiagram("x1.4002.grid.nc")))
+    cells, vertices, edges = map(copy, (rebuilt.cells.vertices.data, rebuilt.vertices.cells, rebuilt.vertices.edges))
+    fix_ordering!(rebuilt)
+    @test rebuilt.cells.vertices.data == cells && rebuilt.vertices.cells == vertices && rebuilt.vertices.edges == edges
 end
 
 @testset "DelaunayTriangulation.jl VoronoiMesh creation" begin

@@ -17,7 +17,7 @@ export graph_partition, find_obtuse_triangles, periodic_edges_mask, periodic_ver
 export check_mesh, check_edge_normal_and_tangent, check_vertex_indexing, check_cell_indexing
 export save
 export circular_refinement_function, y_refinement_function, x_refinement_function
-export fix_diagram!, create_planar_hex_mesh, scale!
+export fix_diagram!, fix_ordering!, create_planar_hex_mesh, scale!
 
 export create_ghost_periodic_voronoi_vertices, create_ghost_periodic_triangulation_vertices
 
