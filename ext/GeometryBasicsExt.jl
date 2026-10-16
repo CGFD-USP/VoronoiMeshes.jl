@@ -4,14 +4,10 @@ using VoronoiMeshes
 using LinearAlgebra: normalize
 using TensorsLite: Vec
 using TensorsLiteGeometry, SmallCollections
-using GeometryBasics: GeometryBasics, Polygon, Point2f
+using GeometryBasics: GeometryBasics, Polygon, Point2, Point2f, MultiPolygon
 
-@static if pkgversion(GeometryBasics) < v"0.5"
-    using GeometryBasics: LineString, Line, TupleView
-    const PolType = Polygon{2, Float32, Point2f, LineString{2, Float32, Point2f, Base.ReinterpretArray{Line{2, Float32}, 1, Tuple{Point2f, Point2f}, TupleView{Tuple{Point2f, Point2f}, 2, 1, Vector{Point2f}}, false}}, Vector{LineString{2, Float32, Point2f, Base.ReinterpretArray{Line{2, Float32}, 1, Tuple{Point2f, Point2f}, TupleView{Tuple{Point2f, Point2f}, 2, 1, Vector{Point2f}}, false}}}}
-else
-    const PolType = Polygon{2, Float32}
-end
+const PolType = Polygon{2, Float32}
+const MultiPolType = MultiPolygon{2, Float32}
 
 @inline _capacity(::Type{<:SmallVector{N}}) where {N} = N
 @inline _capacity(::Type{<:FixedVector{N}}) where {N} = N
@@ -43,7 +39,7 @@ function VoronoiMeshes.create_dual_triangles(mesh::AbstractVoronoiMesh{false})
     return create_polygons_periodic(mesh.cells.position, mesh.vertices.position, mesh.vertices.cells, mesh.x_period, mesh.y_period)
 end
 
-function create_polygons_sphere(vert_lon::Vector{T}, vert_lat, base_lon, edge_lon, edge_lat, verticesOnElement, edgesOnElement, clip::Bool = false) where {T<:Number}
+function create_polygons_sphere(vert_lon::Vector{T}, vert_lat, base_lon, edge_lon, edge_lat, verticesOnElement, edgesOnElement) where {T<:Number}
     x_period = T(360)
 
     polygons = Vector{PolType}(undef, length(base_lon))
@@ -78,7 +74,7 @@ function create_polygons_sphere(vert_lon::Vector{T}, vert_lat, base_lon, edge_lo
 
 
 
-                minlon = 3
+                minlon = 2
 
                 difflon = abs(v1lon - elon)
                 if difflon <= minlon
@@ -122,21 +118,111 @@ function create_polygons_sphere(vert_lon::Vector{T}, vert_lat, base_lon, edge_lo
         end
     end
 
-    return polygons
+    return map(polygon_to_multipoly, polygons)
 end
 
-function VoronoiMeshes.create_cell_polygons(mesh::AbstractVoronoiMesh{true}, clip::Bool = false)
+#From ChatGPT
+function clip_polygon_x(vertices::AbstractVector{<:Point2}, boundary::Float32, side::Symbol)
+
+    inside(x) = side === :le ? x <= boundary : x >= boundary
+
+    result = Point2f[]
+
+    n = length(vertices)
+
+    for i in 1:n
+        current = vertices[i]
+        previous = vertices[mod1(i - 1, n)]
+
+        ic = inside(current[1])
+        ip = inside(previous[1])
+
+        if ic
+            if !ip
+                # Entering the clipping region.
+                t = (boundary - previous[1]) /
+                    (current[1] - previous[1])
+
+                y = muladd(t, current[2] - previous[2], previous[2])
+
+                push!(result, Point2f(boundary, y))
+            end
+
+            push!(result, current)
+
+        elseif ip
+            # Leaving the clipping region.
+            t = (boundary - previous[1]) /
+                (current[1] - previous[1])
+
+            y = muladd(t, current[2] - previous[2], previous[2])
+
+            push!(result, Point2f(boundary, y))
+        end
+    end
+
+    return result
+end
+
+#From ChatGPT
+function polygon_to_multipoly(p::PolType)
+    vertices = p.exterior
+
+    # Determine whether the polygon extends beyond either boundary.
+    minlon = minimum(p[1] for p in vertices)
+    maxlon = maximum(p[1] for p in vertices)
+
+    # No crossing: just return the polygon as a one-component MultiPolygon.
+    if minlon >= -180f0 && maxlon <= 180f0
+        return MultiPolType([p])
+    end
+
+    polygons = PolType[]
+
+    if maxlon > 180f0
+        # Part on the normal [-180, 180] domain.
+        p1 = clip_polygon_x(vertices, 180f0, :le)
+        !isempty(p1) && push!(polygons, Polygon(p1))
+
+        # Part beyond +180, shifted by -360.
+        shifted = Point2f[
+            Point2f(v[1] - 360f0, v[2])
+            for v in vertices
+        ]
+
+        p2 = clip_polygon_x(shifted, -180f0, :ge)
+        !isempty(p2) && push!(polygons, Polygon(p2))
+
+    elseif minlon < -180f0
+        # Part on the normal [-180, 180] domain.
+        p1 = clip_polygon_x(vertices, -180f0, :ge)
+        !isempty(p1) && push!(polygons, Polygon(p1))
+
+        # Part beyond -180, shifted by +360.
+        shifted = Point2f[
+            Point2f(v[1] + 360f0, v[2])
+            for v in vertices
+        ]
+
+        p2 = clip_polygon_x(shifted, 180f0, :le)
+        !isempty(p2) && push!(polygons, Polygon(p2))
+    end
+
+    return MultiPolType(polygons)
+end
+
+function VoronoiMeshes.create_cell_polygons(mesh::AbstractVoronoiMesh{true})
     return create_polygons_sphere(mesh.vertices.longitude, mesh.vertices.latitude,
                                   mesh.cells.longitude,
                                   mesh.edges.longitude, mesh.edges.latitude,
-                                  mesh.cells.vertices, mesh.cells.edges, clip)
+                                  mesh.cells.vertices, mesh.cells.edges)
 end
 
-function VoronoiMeshes.create_dual_triangles(mesh::AbstractVoronoiMesh{true}, clip::Bool = false)
+function VoronoiMeshes.create_dual_triangles(mesh::AbstractVoronoiMesh{true})
     return create_polygons_sphere(mesh.cells.longitude, mesh.cells.latitude,
                                   mesh.vertices.longitude,
                                   mesh.edges.longitude, mesh.edges.latitude,
-                                  mesh.vertices.cells, mesh.vertices.edges, clip)
+                                  mesh.vertices.cells, mesh.vertices.edges)
 end
 
 function create_edge_quadrilaterals_periodic(edge_pos, vert_pos, cell_pos, verticesOnEdge, cellsOnEdge, x_period, y_period)
