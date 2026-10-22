@@ -39,86 +39,105 @@ function VoronoiMeshes.create_dual_triangles(mesh::AbstractVoronoiMesh{false})
     return create_polygons_periodic(mesh.cells.position, mesh.vertices.position, mesh.vertices.cells, mesh.x_period, mesh.y_period)
 end
 
-function create_polygons_sphere(vert_lon::Vector{T}, vert_lat, base_lon, edge_lon, edge_lat, verticesOnElement, edgesOnElement) where {T<:Number}
-    x_period = T(360)
+@inline function _closest_lonlat(c_lon, lon, lat)
+    lon_aux = rad2deg(lon)
+    lon_aux = lon_aux > 180 ? lon_aux - 360 : lon_aux
+    return closest(c_lon, lon_aux), rad2deg(lat)
+end
 
-    polygons = Vector{PolType}(undef, length(base_lon))
+function subdivide_spherical_polygon_edges(lon, lat, base_lon)
+    minlon = 2
 
-    @parallel for i in eachindex(base_lon)
-        @inbounds begin
-            c_lon_aux = rad2deg(base_lon[i])
-            c_lon = c_lon_aux > 180 ? c_lon_aux - x_period : c_lon_aux
-            #local_vertices = SmallVector{NE, Point2f}()
-            local_vertices = Point2f[]
+    c_lon = rad2deg(base_lon)
+    c_lon = c_lon > 180 ? c_lon - 360 : c_lon
 
-            edgesOnEl = edgesOnElement[i]
-            verticesOnEl = verticesOnElement[i]
-            i_v1 = verticesOnEl[end]
-            for j in eachindex(edgesOnElement[i])
-                v1lon_aux_1 = rad2deg(vert_lon[i_v1])
-                v1lon_aux = v1lon_aux_1 > 180 ? v1lon_aux_1 - x_period : v1lon_aux_1
-                v1lat = rad2deg(vert_lat[i_v1])
-                v1lon = closest(c_lon, v1lon_aux)
+    n = length(lon)
+    local_vertices = Point2f[]
 
-                i_e = edgesOnEl[j]
-                elon_aux_1 = rad2deg(edge_lon[i_e])
-                elon_aux = elon_aux_1 > 180 ? elon_aux_1 - x_period : elon_aux_1
-                elat = rad2deg(edge_lat[i_e])
-                elon = closest(c_lon, elon_aux)
+    for i in 1:n
+        i_next = i == n ? 1 : i + 1
 
-                i_v2 = verticesOnEl[j]
-                v2lon_aux_1 = rad2deg(vert_lon[i_v2])
-                v2lon_aux = v2lon_aux_1 > 180 ? v2lon_aux_1 - x_period : v2lon_aux_1
-                v2lat = rad2deg(vert_lat[i_v2])
-                v2lon = closest(c_lon, v2lon_aux)
+        lon1, lat1 = _closest_lonlat(c_lon, lon[i], lat[i])
+        lon2, lat2 = _closest_lonlat(c_lon, lon[i_next], lat[i_next])
 
+        push!(local_vertices, Point2f(lon1, lat1))
 
+        difflon = abs(lon2 - lon1)
 
-                minlon = 2
+        if difflon > minlon
+            nparts = div(difflon, minlon) + 2
 
-                difflon = abs(v1lon - elon)
-                if difflon <= minlon
-                    #Assuming vertex n in between edge n and n+1
-                    push!(local_vertices, Point2f(v1lon, v1lat), Point2f(elon, elat))
-                else
-                    nparts = div(difflon, minlon) + 2
-                    v1pos = lonlat_to_position(1, deg2rad(v1lon), deg2rad(v1lat))
-                    epos = lonlat_to_position(1, deg2rad(elon), deg2rad(elat))
-                    for l in 1:nparts
-                        w = (nparts - l)/(nparts - 1)
-                        p = normalize(w*v1pos + (1-w)*epos)
-                        lonr, latr = position_to_lonlat(p)
-                        lon_aux_1 = rad2deg(lonr)
-                        lon_aux = lon_aux_1 > 180 ? lon_aux_1 - x_period : lon_aux_1
-                        lon = closest(c_lon, lon_aux)
-                        push!(local_vertices, Point2f(lon, rad2deg(latr)))
-                    end
-                end
+            p1 = lonlat_to_position(1, deg2rad(lon1), deg2rad(lat1))
+            p2 = lonlat_to_position(1, deg2rad(lon2), deg2rad(lat2))
 
-                difflon = abs(v2lon - elon)
-                if difflon > minlon
-                    nparts = div(difflon, minlon) + 2
-                    epos = lonlat_to_position(1, deg2rad(elon), deg2rad(elat))
-                    v2pos = lonlat_to_position(1, deg2rad(v2lon), deg2rad(v2lat))
-                    for l in 2:(nparts-1)
-                        w = (nparts - l)/(nparts - 1)
-                        p = normalize(w*epos + (1-w)*v2pos)
-                        lonr, latr = position_to_lonlat(p)
-                        lon_aux_1 = rad2deg(lonr)
-                        lon_aux = lon_aux_1 > 180 ? lon_aux_1 - x_period : lon_aux_1
-                        lon = closest(c_lon, lon_aux)
-                        push!(local_vertices, Point2f(lon, rad2deg(latr)))
-                    end
-                end
+            for l in 2:(nparts - 1)
+                w = (nparts - l) / (nparts - 1)
+                p = normalize(w * p1 + (1 - w) * p2)
 
-                i_v1 = i_v2
+                lon_p, lat_p = position_to_lonlat(p)
+                lon_p, lat_p = _closest_lonlat(c_lon, lon_p, lat_p)
 
+                push!(local_vertices, Point2f(lon_p, lat_p))
             end
-            polygons[i] = Polygon(local_vertices)
         end
     end
 
-    return map(polygon_to_multipoly, polygons)
+    return polygon_to_multipoly(Polygon(local_vertices))
+end
+
+function create_polygons_sphere(vert_lon::Vector{T}, vert_lat,
+                                base_lon,
+                                edge_lon, edge_lat,
+                                verticesOnElement, edgesOnElement) where {T <: Number}
+
+    polygons = Vector{MultiPolType}(undef, length(base_lon))
+
+    @parallel for i in eachindex(base_lon)
+        @inbounds begin
+            vertices = verticesOnElement[i]
+            edges = edgesOnElement[i]
+
+            lon = promote_type(eltype(vert_lon), eltype(edge_lon))[]
+            lat = promote_type(eltype(vert_lat), eltype(edge_lat))[]
+
+            push!(lon, vert_lon[vertices[end]])
+            push!(lat, vert_lat[vertices[end]])
+
+            for j in eachindex(edges)
+                e = edges[j]
+                v = vertices[j]
+
+                push!(lon, edge_lon[e], vert_lon[v])
+                push!(lat, edge_lat[e], vert_lat[v])
+            end
+
+            pop!(lon)
+            pop!(lat)
+
+            polygons[i] = subdivide_spherical_polygon_edges(lon, lat, base_lon[i])
+        end
+    end
+
+    return polygons
+end
+
+function create_polygons_sphere(vert_lon::Vector{T}, vert_lat,
+                                base_lon, verticesOnElement) where {T <: Number}
+
+    polygons = Vector{MultiPolType}(undef, length(base_lon))
+
+    @parallel for i in eachindex(base_lon)
+        @inbounds begin
+            vertices = verticesOnElement[i]
+
+            lon = vert_lon[vertices]
+            lat = vert_lat[vertices]
+
+            polygons[i] = subdivide_spherical_polygon_edges(lon, lat, base_lon[i])
+        end
+    end
+
+    return polygons
 end
 
 #From ChatGPT
@@ -254,7 +273,42 @@ function VoronoiMeshes.create_edge_quadrilaterals(mesh::AbstractVoronoiMesh{fals
     return create_edge_quadrilaterals_periodic(mesh.edges.position, mesh.vertices.position, mesh.cells.position, mesh.edges.vertices, mesh.edges.cells, mesh.x_period, mesh.y_period)
 end
 
+function create_edge_quadrilaterals_spherical(edge_lon,
+                                              vert_lon, vert_lat,
+                                              cell_lon, cell_lat,
+                                              verticesOnEdge, cellsOnEdge)
 
+    edge_quadrilaterals = Vector{MultiPolType}(undef, length(edge_lon))
+
+    @parallel for e in eachindex(edge_lon)
+        @inbounds begin
+            iv1, iv2 = verticesOnEdge[e]
+            ic1, ic2 = cellsOnEdge[e]
+
+            lon = Vector{eltype(vert_lon)}(undef, 4)
+            lat = Vector{eltype(vert_lat)}(undef, 4)
+
+            lon[1] = cell_lon[ic1]
+            lon[2] = vert_lon[iv1]
+            lon[3] = cell_lon[ic2]
+            lon[4] = vert_lon[iv2]
+
+            lat[1] = cell_lat[ic1]
+            lat[2] = vert_lat[iv1]
+            lat[3] = cell_lat[ic2]
+            lat[4] = vert_lat[iv2]
+
+
+            edge_quadrilaterals[e] = subdivide_spherical_polygon_edges(lon, lat, edge_lon[e])
+        end
+    end
+
+    return edge_quadrilaterals
+end
+
+function VoronoiMeshes.create_edge_quadrilaterals(mesh::AbstractVoronoiMesh{true})
+    return create_edge_quadrilaterals_spherical(mesh.edges.longitude, mesh.vertices.longitude, mesh.vertices.latitude, mesh.cells.longitude, mesh.cells.latitude, mesh.edges.vertices, mesh.edges.cells)
+end
 
 """
         create_polygon_linesegments_periodic(vert_pos, edge_pos, polygon_pos, edgesOnPolygon, verticesOnEdge, x_period, y_period)
