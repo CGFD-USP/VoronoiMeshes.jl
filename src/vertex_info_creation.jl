@@ -53,9 +53,25 @@ function compute_kite_areas_spherical!(output, cpos, vpos, cellsOnVertex, R)
             c23_pos = arc_midpoint(R, c2_pos, c3_pos)
             c31_pos = arc_midpoint(R, c3_pos, c1_pos)
 
-            a1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos, c31_pos)
-            a2 = spherical_polygon_area(R, c12_pos, c2_pos, c23_pos, v_pos)
-            a3 = spherical_polygon_area(R, c23_pos, c3_pos, c31_pos, v_pos)
+            s12 = across(c1_pos, c2_pos, c3_pos, v_pos)
+            s23 = across(c2_pos, c3_pos, c1_pos, v_pos)
+            s31 = across(c3_pos, c1_pos, c2_pos, v_pos)
+            if s12 | s23 | s31
+                # obtuse triangle (see `across`): each kite is the signed sum of its two triangles from the cell centre
+                t12_1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos)
+                t31_1 = spherical_polygon_area(R, c1_pos, v_pos, c31_pos)
+                t23_2 = spherical_polygon_area(R, c2_pos, c23_pos, v_pos)
+                t12_2 = spherical_polygon_area(R, c2_pos, v_pos, c12_pos)
+                t31_3 = spherical_polygon_area(R, c3_pos, c31_pos, v_pos)
+                t23_3 = spherical_polygon_area(R, c3_pos, v_pos, c23_pos)
+                a1 = ifelse(s12, -t12_1, t12_1) + ifelse(s31, -t31_1, t31_1)
+                a2 = ifelse(s23, -t23_2, t23_2) + ifelse(s12, -t12_2, t12_2)
+                a3 = ifelse(s31, -t31_3, t31_3) + ifelse(s23, -t23_3, t23_3)
+            else
+                a1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos, c31_pos)
+                a2 = spherical_polygon_area(R, c12_pos, c2_pos, c23_pos, v_pos)
+                a3 = spherical_polygon_area(R, c23_pos, c3_pos, c31_pos, v_pos)
+            end
             output[v] = (a1, a2, a3)
         end
     end
@@ -101,6 +117,18 @@ function compute_vertex_edgesSign(vertices::Vertices{S, N_MAX, TI, TF}) where {S
     return compute_vertex_edgesSign!(edgesSign, vertices.edges, verticesOnEdge)
 end
 
+"""
+    across(p1, p2, q, v) -> Bool
+
+Whether `v` and `q` lie on opposite sides of the great circle through `p1` and `p2`.
+
+For the cells `p1`, `p2`, `q` and their vertex `v` this holds only when their Delaunay triangle is obtuse (on the sphere,
+the angle at `q` larger than the sum of the other two). The circumcentre `v` then lies outside the triangle, across the
+side opposite `q`, and `xEdge` of that side lies outside its Voronoi edge. For every other triangle it is false, and the
+areas below are unchanged.
+"""
+@inline across(p1, p2, q, v) = signbit(((p1 × p2) ⋅ v) * ((p1 × p2) ⋅ q))
+
 function compute_vertex_areaMimetic_spherical!(output::AbstractVector, vpos::VecArray, cellsOnVertex, cpos, R::Number)
 
     @parallel for v in eachindex(cellsOnVertex)
@@ -114,6 +142,8 @@ function compute_vertex_areaMimetic_spherical!(output::AbstractVector, vpos::Vec
                 cp2 = cpos[cov[i]]
                 dc = arc_length(R,cp1, cp2)
                 dv = arc_length(R, vp, arc_midpoint(R, cp1, cp2))
+                # signed: negative only for an obtuse triangle, on the side opposite the obtuse angle (see `across`)
+                dv = ifelse(across(cp1, cp2, cpos[cov[mod1(i + 1, 3)]], vp), -dv, dv)
 
                 r += dc * dv / 2
                 cp1 = cp2
@@ -145,9 +175,13 @@ function compute_kite_areas_mimetic_spherical!(output::AbstractVector, cpos::Vec
             c23_pos = arc_midpoint(R, c2_pos, c3_pos)
             c31_pos = arc_midpoint(R, c3_pos, c1_pos)
 
+            # signed: negative only for an obtuse triangle, on the side opposite the obtuse angle (see `across`)
             l1 = arc_length(R, v_pos, c12_pos)
+            l1 = ifelse(across(c1_pos, c2_pos, c3_pos, v_pos), -l1, l1)
             l2 = arc_length(R, v_pos, c23_pos)
+            l2 = ifelse(across(c2_pos, c3_pos, c1_pos, v_pos), -l2, l2)
             l3 = arc_length(R, v_pos, c31_pos)
+            l3 = ifelse(across(c3_pos, c1_pos, c2_pos, v_pos), -l3, l3)
 
             t1 = l1 * arc_length(R, c1_pos, c2_pos) / 2
             t2 = l2 * arc_length(R, c2_pos, c3_pos) / 2
