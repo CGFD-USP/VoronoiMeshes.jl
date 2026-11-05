@@ -35,9 +35,32 @@ function find_obtuse_triangles_periodic(cpos,cellsOnVertex,xp::Number,yp::Number
     return r
 end
 
-find_obtuse_triangles(vertices::Vertices{false},cells::Cells{false},xp::Number,yp::Number) = find_obtuse_triangles_periodic(cells.position,vertices.cells,xp,yp)
+find_obtuse_triangles_periodic(vertices::Vertices{false}, cells::Cells{false}, xp::Number, yp::Number) = find_obtuse_triangles_periodic(cells.position, vertices.cells, xp, yp)
 
-find_obtuse_triangles(mesh::AbstractVoronoiMesh{false}) = find_obtuse_triangles(mesh.vertices,mesh.cells,mesh.x_period, mesh.y_period)
+find_obtuse_triangles(mesh::AbstractVoronoiMesh{false}) = find_obtuse_triangles_periodic(mesh.vertices, mesh.cells, mesh.x_period, mesh.y_period)
+
+function find_obtuse_triangles_spherical(cpos, cellsOnVertex, R::Number)
+    r = Int[]
+    lk = ReentrantLock()
+    @parallel for v in eachindex(cellsOnVertex)
+        @inbounds begin
+        c1,c2,c3 = cellsOnVertex[v]
+        c1pos = cpos[c1] / R
+        c2pos = cpos[c2] / R
+        c3pos = cpos[c3] / R
+        if spherical_is_obtuse(One(), c1pos, c2pos, c3pos)
+            lock(lk) do
+                push!(r,v)
+            end
+        end
+        end #inbounds
+    end
+    return r
+end
+
+find_obtuse_triangles_spherical(vertices::Vertices{true}, cells::Cells{true}, R::Number) = find_obtuse_triangles_spherical(cells.position, vertices.cells, R)
+
+find_obtuse_triangles(mesh::AbstractVoronoiMesh{true}) = find_obtuse_triangles_spherical(mesh.vertices, mesh.cells, mesh.sphere_radius)
 
 """
     periodic_edges_mask(dcEdge::Vector,cellsOnEdge,cell_positions)
