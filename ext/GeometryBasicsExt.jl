@@ -3,6 +3,7 @@ module GeometryBasicsExt
 using VoronoiMeshes
 using LinearAlgebra: normalize
 using TensorsLite: Vec
+using Zeros
 using TensorsLiteGeometry, SmallCollections
 using GeometryBasics: GeometryBasics, Polygon, Point2, Point2f, MultiPolygon
 
@@ -103,12 +104,30 @@ function create_polygons_sphere(vert_lon::Vector{T}, vert_lat,
             push!(lon, vert_lon[vertices[end]])
             push!(lat, vert_lat[vertices[end]])
 
+            p1 = lonlat_to_position(One(), lon[1], lat[1])
             for j in eachindex(edges)
                 e = edges[j]
                 v = vertices[j]
 
-                push!(lon, edge_lon[e], vert_lon[v])
-                push!(lat, edge_lat[e], vert_lat[v])
+                edge_lon_e = edge_lon[e]
+                edge_lat_e = edge_lat[e]
+
+                pe = lonlat_to_position(One(), edge_lon_e, edge_lat_e)
+
+                vert_lon_v = vert_lon[v]
+                vert_lat_v = vert_lat[v]
+
+                p2 = lonlat_to_position(One(), vert_lon_v, vert_lat_v)
+
+                #Most typical case: edge point is between the two vertices
+                if  signbit(arc_length(One(), p1, pe) - arc_length(One(), p1, p2))
+                    push!(lon, edge_lon_e)
+                    push!(lat, edge_lat_e)
+                end
+                push!(lon, vert_lon_v)
+                push!(lat, vert_lat_v)
+
+                p1 = p2
             end
 
             pop!(lon)
