@@ -29,10 +29,16 @@ function compute_kite_areas_periodic!(output, cpos, vpos, cellsOnVertex, xp, yp)
             c23_pos = 0.5 * (c2_pos + c3_pos)
             c31_pos = 0.5 * (c3_pos + c1_pos)
 
-            a1 = area(c1_pos, c12_pos, v_pos, c31_pos)
-            a2 = area(c12_pos, c2_pos, c23_pos, v_pos)
-            a3 = area(c23_pos, c3_pos, c31_pos, v_pos)
-            output[v] = (a1, a2, a3)
+            a1_1 = area(c1_pos, c12_pos, v_pos)
+            a1_2 = area(c1_pos, v_pos, c31_pos)
+
+            a2_1 = area(c2_pos, c23_pos, v_pos)
+            a2_2 = area(c2_pos, v_pos, c12_pos)
+
+            a3_1 = area(c3_pos, c31_pos, v_pos)
+            a3_2 = area(c3_pos, v_pos, c23_pos)
+
+            output[v] = (a1_1 + a1_2, a2_1 + a2_2, a3_1 + a3_2)
         end
     end
     return output
@@ -53,10 +59,16 @@ function compute_kite_areas_spherical!(output, cpos, vpos, cellsOnVertex, R)
             c23_pos = arc_midpoint(R, c2_pos, c3_pos)
             c31_pos = arc_midpoint(R, c3_pos, c1_pos)
 
-            a1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos, c31_pos)
-            a2 = spherical_polygon_area(R, c12_pos, c2_pos, c23_pos, v_pos)
-            a3 = spherical_polygon_area(R, c23_pos, c3_pos, c31_pos, v_pos)
-            output[v] = (a1, a2, a3)
+            a1_1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos)
+            a1_2 = spherical_polygon_area(R, c1_pos, v_pos, c31_pos)
+
+            a2_1 = spherical_polygon_area(R, c2_pos, c23_pos, v_pos)
+            a2_2 = spherical_polygon_area(R, c2_pos, v_pos, c12_pos)
+
+            a3_1 = spherical_polygon_area(R, c3_pos, c31_pos, v_pos)
+            a3_2 = spherical_polygon_area(R, c3_pos, v_pos, c23_pos)
+
+            output[v] = (a1_1 + a1_2, a2_1 + a2_2, a3_1 + a3_2)
         end
     end
     return output
@@ -145,14 +157,14 @@ function compute_kite_areas_mimetic_spherical!(output::AbstractVector, cpos::Vec
             c23_pos = arc_midpoint(R, c2_pos, c3_pos)
             c31_pos = arc_midpoint(R, c3_pos, c1_pos)
 
-            l1 = arc_length(R, v_pos, c12_pos)
-            l2 = arc_length(R, v_pos, c23_pos)
-            l3 = arc_length(R, v_pos, c31_pos)
+            l1 = sign(c1_pos ⋅ (c2_pos × v_pos))*arc_length(R, v_pos, c12_pos)
+            l2 = sign(c2_pos ⋅ (c3_pos × v_pos))*arc_length(R, v_pos, c23_pos)
+            l3 = sign(c3_pos ⋅ (c1_pos × v_pos))*arc_length(R, v_pos, c31_pos)
 
             t1 = l1 * arc_length(R, c1_pos, c2_pos) / 2
             t2 = l2 * arc_length(R, c2_pos, c3_pos) / 2
             t3 = l3 * arc_length(R, c3_pos, c1_pos) / 2
-            
+
 
             a1 = (t1 + t3) / 2
             a2 = (t1 + t2) / 2 
