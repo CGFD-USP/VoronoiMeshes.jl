@@ -117,21 +117,14 @@ function compute_vertex_areaMimetic_spherical!(output::AbstractVector, vpos::Vec
 
     @parallel for v in eachindex(cellsOnVertex)
         @inbounds begin
-            vp = vpos[v]
-            cov = cellsOnVertex[v]
+            v_pos = vpos[v]
+            c1, c2, c3 = cellsOnVertex[v]
+            c1_pos = cpos[c1]
+            c2_pos = cpos[c2]
+            c3_pos = cpos[c3]
 
-            r = zero(eltype(output))
-            cp1 = cpos[cov[3]]
-            for i in 1:3
-                cp2 = cpos[cov[i]]
-                dc = arc_length(R,cp1, cp2)
-                dv = arc_length(R, vp, arc_midpoint(R, cp1, cp2))
-
-                r += dc * dv / 2
-                cp1 = cp2
-            end
-
-            output[v] = r
+            #Compute the kiteAreasMimetic and sum them
+            output[v] = sum(spherical_kite_areas_mimetic(R, v_pos, c1_pos, c2_pos, c3_pos))
         end
     end
 
@@ -141,6 +134,29 @@ end
 compute_vertex_areaMimetic!(output, vertices::Vertices{false}) = compute_polygon_area_periodic!(output, vertices.info.diagram.generators, vertices.cells, vertices.x_period, vertices.y_period)
 compute_vertex_areaMimetic!(output, vertices::Vertices{true}) = compute_vertex_areaMimetic_spherical!(output, vertices.position, vertices.cells, vertices.info.diagram.generators, vertices.sphere_radius)
 compute_vertex_areaMimetic(vertices::Vertices) = compute_vertex_areaMimetic!(similar(vertices.position.x), vertices)
+
+@inline function spherical_kite_areas_mimetic(R::Real, v_pos::Vec, c1_pos::Vec, c2_pos::Vec, c3_pos::Vec)
+
+    #Those should be the edges positions
+    c12_pos = arc_midpoint(R, c1_pos, c2_pos)
+    c23_pos = arc_midpoint(R, c2_pos, c3_pos)
+    c31_pos = arc_midpoint(R, c3_pos, c1_pos)
+
+    l1 = sign(c1_pos ⋅ (c2_pos × v_pos))*arc_length(R, v_pos, c12_pos)
+    l2 = sign(c2_pos ⋅ (c3_pos × v_pos))*arc_length(R, v_pos, c23_pos)
+    l3 = sign(c3_pos ⋅ (c1_pos × v_pos))*arc_length(R, v_pos, c31_pos)
+
+    t1 = l1 * arc_length(R, c1_pos, c2_pos) / 2
+    t2 = l2 * arc_length(R, c2_pos, c3_pos) / 2
+    t3 = l3 * arc_length(R, c3_pos, c1_pos) / 2
+
+
+    a1 = (t1 + t3) / 2
+    a2 = (t1 + t2) / 2
+    a3 = (t2 + t3) / 2
+
+    return (a1, a2, a3)
+end
 
 function compute_kite_areas_mimetic_spherical!(output::AbstractVector, cpos::VecArray, vpos::VecArray, cellsOnVertex, R::Number)
 
@@ -152,24 +168,7 @@ function compute_kite_areas_mimetic_spherical!(output::AbstractVector, cpos::Vec
             c2_pos = cpos[c2]
             c3_pos = cpos[c3]
 
-            #Those should be the edges positions
-            c12_pos = arc_midpoint(R, c1_pos, c2_pos)
-            c23_pos = arc_midpoint(R, c2_pos, c3_pos)
-            c31_pos = arc_midpoint(R, c3_pos, c1_pos)
-
-            l1 = sign(c1_pos ⋅ (c2_pos × v_pos))*arc_length(R, v_pos, c12_pos)
-            l2 = sign(c2_pos ⋅ (c3_pos × v_pos))*arc_length(R, v_pos, c23_pos)
-            l3 = sign(c3_pos ⋅ (c1_pos × v_pos))*arc_length(R, v_pos, c31_pos)
-
-            t1 = l1 * arc_length(R, c1_pos, c2_pos) / 2
-            t2 = l2 * arc_length(R, c2_pos, c3_pos) / 2
-            t3 = l3 * arc_length(R, c3_pos, c1_pos) / 2
-
-
-            a1 = (t1 + t3) / 2
-            a2 = (t1 + t2) / 2 
-            a3 = (t2 + t3) / 2 
-            output[v] = (a1, a2, a3)
+            output[v] = spherical_kite_areas_mimetic(R, v_pos, c1_pos, c2_pos, c3_pos)
         end
     end
     return output
