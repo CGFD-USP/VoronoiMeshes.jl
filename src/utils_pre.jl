@@ -341,15 +341,16 @@ function counter_clockwise_test(reference, p1, p2, normal)
 end
 
 #spherical
-function check_if_counter_clockwise(R::Number, reference_position, indicesOnReference, referee_position)
+function check_if_counter_clockwise(R::Number, verticesOnElement, vertices_position)
     r = Int[]
     lk = ReentrantLock()
-    @parallel for e in eachindex(reference_position)
+    @parallel for e in eachindex(verticesOnElement)
         @inbounds begin
-            ref = reference_position[e]
-            inds = indicesOnReference[e]
-            p1 = referee_position[inds[1]]
-            p2 = referee_position[inds[2]]
+            inds = verticesOnElement[e]
+            N = length(inds)
+            ref = R * normalize(sum(vertices_position[inds]) / N)
+            p1 = vertices_position[inds[1]]
+            p2 = vertices_position[inds[2]]
             if !counter_clockwise_test(ref, p1, p2, ref / R)
                 lock(lk) do
                     push!(r,e)
@@ -362,15 +363,17 @@ function check_if_counter_clockwise(R::Number, reference_position, indicesOnRefe
 end
 
 #periodic
-function check_if_counter_clockwise(reference_position, indicesOnReference, referee_position, xp::Number, yp::Number)
+function check_if_counter_clockwise(verticesOnElement, vertices_position, xp::Number, yp::Number)
     r = Int[]
     lk = ReentrantLock()
-    @parallel for e in eachindex(reference_position)
+    @parallel for e in eachindex(verticesOnElement)
         @inbounds begin
-            ref = reference_position[e]
-            inds = indicesOnReference[e]
-            p1 = closest(ref, referee_position[inds[1]], xp ,yp)
-            p2 = closest(ref, referee_position[inds[2]], xp, yp)
+            inds = verticesOnElement[e]
+            N = length(inds)
+            p1 = vertices_position[inds[1]]
+            positions = map(i -> closest(p1, @inbounds(vertices_position[i]), xp ,yp), inds)
+            ref = sum(positions) / N
+            p2 = positions[2]
             if !counter_clockwise_test(ref, p1, p2, 𝐤)
                 lock(lk) do
                     push!(r,e)
@@ -383,44 +386,6 @@ function check_if_counter_clockwise(reference_position, indicesOnReference, refe
 end
 
 for N in 6:9
-    precompile(Tuple{typeof(check_if_counter_clockwise), Vec2DxyArray{Float64,1}, SmallVectorArray{N, Int32, 1, Array{FixedVector{N, Int32}, 1}}, Vec2DxyArray{Float64,1}, Float64, Float64})
+    precompile(Tuple{typeof(check_if_counter_clockwise), SmallVectorArray{N, Int32, 1, Array{FixedVector{N, Int32}, 1}}, Vec2DxyArray{Float64,1}, Float64, Float64})
 end
-precompile(Tuple{typeof(check_if_counter_clockwise), Vec2DxyArray{Float64,1}, Array{Tuple{Int32, Int32, Int32}, 1}, Vec2DxyArray{Float64,1}, Float64, Float64})
-
-function check_indices_ordering(R::Number, ref_position, indOnRef1, rferee_pos1, indOnRef2, rferee_pos2)
-    r = Int[]
-    lk = ReentrantLock()
-    @parallel for e in eachindex(ref_position)
-        @inbounds begin
-            ref = ref_position[e]
-            p1 = rferee_pos1[indOnRef1[e][1]]
-            p2 = rferee_pos2[indOnRef2[e][1]]
-            if !counter_clockwise_test(ref, p1, p2, ref / R)
-                lock(lk) do
-                    push!(r,e)
-                end
-            end
-        end #inbounds
-    end
-    n_problems = length(r)
-    return n_problems == 0 ? nothing : r
-end
-
-function check_indices_ordering(ref_position, indOnRef1, rferee_pos1, indOnRef2, rferee_pos2, xp::Number, yp::Number)
-    r = Int[]
-    lk = ReentrantLock()
-    @parallel for e in eachindex(ref_position)
-        @inbounds begin
-            ref = ref_position[e]
-            p1 = closest(ref, rferee_pos1[indOnRef1[e][1]], xp, yp)
-            p2 = closest(ref, rferee_pos2[indOnRef2[e][1]], xp, yp)
-            if !counter_clockwise_test(ref, p1, p2, 𝐤)
-                lock(lk) do
-                    push!(r,e)
-                end
-            end
-        end #inbounds
-    end
-    n_problems = length(r)
-    return n_problems == 0 ? nothing : r
-end
+precompile(Tuple{typeof(check_if_counter_clockwise), Array{Tuple{Int32, Int32, Int32}, 1}, Vec2DxyArray{Float64,1}, Float64, Float64})

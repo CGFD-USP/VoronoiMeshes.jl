@@ -228,17 +228,32 @@ function check_edge_indexing(mesh::AbstractVoronoiMesh{true})
     isnothing(ordering) ? nothing : (;ordering)
 end
 
-function check_vertex_indexing_spherical(R::Number, vpos, cellsOnVertex, cpos, edgesOnVertex, epos)
-    cells = check_indices_ordering(R, vpos, edgesOnVertex, epos, cellsOnVertex, cpos)
-    isnothing(cells) ? nothing : (; cells)
-end
+function check_el1_between_el2(el1_on_base, el2_on_base, el2_on_el1)
+    r = Int[]
+    lk = ReentrantLock()
+    @parallel for i in eachindex(el1_on_base)
+        el1_base = el1_on_base[i]
+        el2_base = el2_on_base[i]
 
-function check_vertex_indexing_periodic(vpos, cellsOnVertex, cpos, edgesOnVertex, epos, xp::Number, yp::Number)
-    cells = check_indices_ordering(vpos, edgesOnVertex, epos, cellsOnVertex, cpos, xp, yp)
-    isnothing(cells) ? nothing : (; cells)
-end
+        correct = true
+        v1 = el1_base[end]
+        for k in eachindex(el2_base)
+            v2 = el1_base[k]
+            p = el2_base[k]
 
-precompile(Tuple{typeof(check_vertex_indexing_periodic), Vec2DxyArray{Float64, 1}, Array{Tuple{Int32, Int32, Int32}, 1}, Vec2DxyArray{Float64, 1}, Array{Tuple{Int32, Int32, Int32}, 1}, Vec2DxyArray{Float64, 1}, Float64, Float64})
+            correct = correct & (p in el2_on_el1[v1] && p in el2_on_el1[v2])
+            v1 = v2
+        end
+
+        if !correct
+            lock(lk) do
+                push!(r, i)
+            end
+        end
+    end
+    n_problems = length(r)
+    return n_problems == 0 ? nothing : r
+end
 
 """
     check_vertex_indexing(mesh::AbstractVoronoiMesh)
@@ -251,18 +266,14 @@ Also check if `vertices.cells[v][n]` is between `vertices.edges[v][n]` and
 function check_vertex_indexing end
 
 function check_vertex_indexing(mesh::AbstractVoronoiMesh{false})
-    ordering = check_vertex_indexing_periodic(mesh.vertices.position,
-                                   mesh.vertices.cells,
-                                   mesh.cells.position,
-                                   mesh.vertices.edges,
-                                   mesh.edges.position,
-                                   mesh.x_period, mesh.y_period)
+
+    cells = check_el1_between_el2(mesh.vertices.cells, mesh.vertices.edges, mesh.cells.edges)
+    ordering = isnothing(cells) ? nothing : (;cells)
+
     xp = mesh.x_period
     yp = mesh.y_period
-    cc_c = check_if_counter_clockwise(mesh.vertices.position,
-                                      mesh.vertices.cells, mesh.cells.position, xp, yp)
-    cc_e = check_if_counter_clockwise(mesh.vertices.position,
-                                      mesh.vertices.edges, mesh.edges.position, xp, yp)
+    cc_c = check_if_counter_clockwise(mesh.vertices.cells, mesh.cells.position, xp, yp)
+    cc_e = check_if_counter_clockwise(mesh.vertices.edges, mesh.edges.position, xp, yp)
 
     return all(isnothing, (cc_c, cc_e, ordering)) ? 
         nothing :
@@ -270,35 +281,18 @@ function check_vertex_indexing(mesh::AbstractVoronoiMesh{false})
 end
 
 function check_vertex_indexing(mesh::AbstractVoronoiMesh{true})
+
+    cells = check_el1_between_el2(mesh.vertices.cells, mesh.vertices.edges, mesh.cells.edges)
+    ordering = isnothing(cells) ? nothing : (;cells)
+
     R = mesh.sphere_radius
-    ordering = check_vertex_indexing_spherical(R, mesh.vertices.position,
-                                    mesh.vertices.cells,
-                                    mesh.cells.position,
-                                    mesh.vertices.edges,
-                                    mesh.edges.position)
-    cc_c = check_if_counter_clockwise(R, mesh.vertices.position,
-                                      mesh.vertices.cells, mesh.cells.position)
-    cc_e = check_if_counter_clockwise(R, mesh.vertices.position,
-                                      mesh.vertices.edges, mesh.edges.position)
+    cc_c = check_if_counter_clockwise(R, mesh.vertices.cells, mesh.cells.position)
+    cc_e = check_if_counter_clockwise(R, mesh.vertices.edges, mesh.edges.position)
 
     return all(isnothing, (cc_c, cc_e, ordering)) ? 
         nothing :
         (ordering = ordering, counter_clockwise = (edges = cc_e, cells = cc_c))
 end
-
-function check_cell_indexing_spherical(R::Number, cpos, cellsOnCell, verticesOnCell, vpos, edgesOnCell, epos)
-    edges = check_indices_ordering(R, cpos, edgesOnCell, epos, verticesOnCell, vpos)
-    cells = check_indices_ordering(R, cpos, cellsOnCell, cpos, verticesOnCell, vpos)
-    return all(isnothing, (edges, cells)) ? nothing : (;edges, cells)
-end
-
-function check_cell_indexing_periodic(cpos, cellsOnCell, verticesOnCell, vpos, edgesOnCell, epos, xp::Number, yp::Number)
-    edges = check_indices_ordering(cpos, edgesOnCell, epos, verticesOnCell, vpos, xp, yp)
-    cells = check_indices_ordering(cpos, cellsOnCell, cpos, verticesOnCell, vpos, xp, yp)
-    return all(isnothing, (edges, cells)) ? nothing : (;edges, cells)
-end
-
-precompile(Tuple{typeof(check_cell_indexing_periodic), Vec2DxyArray{Float64, 1}, SmallVectorArray{6, Int32, 1, Array{FixedVector{6, Int32}, 1}}, SmallVectorArray{6, Int32, 1, Array{FixedVector{6, Int32}, 1}}, Vec2DxyArray{Float64, 1}, SmallVectorArray{6, Int32, 1, Array{FixedVector{6, Int32}, 1}}, Vec2DxyArray{Float64, 1}, Float64, Float64})
 
 """
     check_cell_indexing(mesh::AbstractVoronoiMesh)
@@ -311,44 +305,39 @@ Also check if `cell.vertices[c][n]` is between `cell.{edges|cells}[c][n]` and
 function check_cell_indexing end
 
 function check_cell_indexing(mesh::AbstractVoronoiMesh{true})
-    ordering  = check_cell_indexing_spherical(mesh.sphere_radius, mesh.cells.position,
-        mesh.cells.cells,
-        mesh.cells.vertices,
-        mesh.vertices.position,
-        mesh.cells.edges,
-        mesh.edges.position)
+
+    edges = check_el1_between_el2(mesh.cells.vertices, mesh.cells.edges, mesh.vertices.edges)
+    cells = check_el1_between_el2(mesh.cells.vertices, mesh.cells.cells, mesh.vertices.cells)
+
+    ordering = isnothing(edges) & isnothing(cells) ?
+        nothing :
+        (; edges, cells)
 
     R = mesh.sphere_radius
-    cc_vert = check_if_counter_clockwise(R, mesh.cells.position,
-                                         mesh.cells.vertices, mesh.vertices.position)
-    cc_edg = check_if_counter_clockwise(R, mesh.cells.position,
-                                        mesh.cells.edges, mesh.edges.position)
-    cc_cells = check_if_counter_clockwise(R, mesh.cells.position,
-                                          mesh.cells.cells, mesh.cells.position)
+    cc_vert = check_if_counter_clockwise(R, mesh.cells.vertices, mesh.vertices.position)
+    cc_edg = check_if_counter_clockwise(R, mesh.cells.edges, mesh.edges.position)
+    cc_cells = check_if_counter_clockwise(R, mesh.cells.cells, mesh.cells.position)
     return all(isnothing, (cc_vert, cc_edg, cc_cells, ordering)) ? 
         nothing :
         (ordering = ordering, counter_clockwise = (vertices = cc_vert, edges = cc_edg, cells = cc_cells))
 end
 
 function check_cell_indexing(mesh::AbstractVoronoiMesh{false})
-    ordering = check_cell_indexing_periodic(mesh.cells.position,
-        mesh.cells.cells,
-        mesh.cells.vertices,
-        mesh.vertices.position,
-        mesh.cells.edges,
-        mesh.edges.position,
-        mesh.x_period, mesh.y_period)
+
+    edges = check_el1_between_el2(mesh.cells.vertices, mesh.cells.edges, mesh.vertices.edges)
+    cells = check_el1_between_el2(mesh.cells.vertices, mesh.cells.cells, mesh.vertices.cells)
+
+    ordering = isnothing(edges) & isnothing(cells) ?
+        nothing :
+        (; edges, cells)
 
     xp = mesh.x_period
     yp = mesh.y_period
-    cc_vert = check_if_counter_clockwise(mesh.cells.position,
-                                         mesh.cells.vertices, mesh.vertices.position,
+    cc_vert = check_if_counter_clockwise(mesh.cells.vertices, mesh.vertices.position,
                                          xp, yp)
-    cc_edg = check_if_counter_clockwise(mesh.cells.position,
-                                         mesh.cells.edges, mesh.edges.position,
+    cc_edg = check_if_counter_clockwise(mesh.cells.edges, mesh.edges.position,
                                          xp, yp)
-    cc_cells = check_if_counter_clockwise(mesh.cells.position,
-                                         mesh.cells.cells, mesh.cells.position,
+    cc_cells = check_if_counter_clockwise(mesh.cells.cells, mesh.cells.position,
                                          xp, yp)
     return all(isnothing, (cc_vert, cc_edg, cc_cells, ordering)) ? 
         nothing :
@@ -421,7 +410,7 @@ end
 
 function fix_diagram!(d::PlanarVoronoiDiagram)
     verticesOnCell = d.verticesOnCell
-    verticesOnCell_inverted = check_if_counter_clockwise(d.generators, verticesOnCell, d.vertices, d.x_period[], d.y_period[])
+    verticesOnCell_inverted = check_if_counter_clockwise(verticesOnCell, d.vertices, d.x_period[], d.y_period[])
     if !isnothing(verticesOnCell_inverted)
         let voc = verticesOnCell_inverted::Vector{Int}
             @parallel for i in voc
@@ -431,7 +420,7 @@ function fix_diagram!(d::PlanarVoronoiDiagram)
     end
 
     cellsOnVertex = d.cellsOnVertex
-    cellsOnVertex_inverted = check_if_counter_clockwise(d.vertices, cellsOnVertex, d.generators, d.x_period[], d.y_period[])
+    cellsOnVertex_inverted = check_if_counter_clockwise(cellsOnVertex, d.generators, d.x_period[], d.y_period[])
     if !isnothing(cellsOnVertex_inverted)
         let cov = cellsOnVertex_inverted::Vector{Int}
             @parallel for i in cov
@@ -445,7 +434,7 @@ end
 
 function fix_diagram!(d::SphericalVoronoiDiagram)
     verticesOnCell = d.verticesOnCell
-    verticesOnCell_inverted = check_if_counter_clockwise(d.sphere_radius[], d.generators, verticesOnCell, d.vertices)
+    verticesOnCell_inverted = check_if_counter_clockwise(d.sphere_radius[], verticesOnCell, d.vertices)
     if !isnothing(verticesOnCell_inverted)
         let voc = verticesOnCell_inverted::Vector{Int}
             @parallel for i in voc
@@ -455,7 +444,7 @@ function fix_diagram!(d::SphericalVoronoiDiagram)
     end
 
     cellsOnVertex = d.cellsOnVertex
-    cellsOnVertex_inverted = check_if_counter_clockwise(d.sphere_radius[], d.vertices, cellsOnVertex, d.generators)
+    cellsOnVertex_inverted = check_if_counter_clockwise(d.sphere_radius[], cellsOnVertex, d.generators)
     if !isnothing(cellsOnVertex_inverted)
         let cov = cellsOnVertex_inverted::Vector{Int}
             @parallel for i in cov
@@ -527,9 +516,9 @@ function fix_vertex_edges!(edgesOnVertex, cellsOnVertex, cellsOnEdge, info::Vert
 end
 
 vertex_cells_inverted(m::AbstractVoronoiMesh{true}) =
-    check_if_counter_clockwise(m.sphere_radius, m.vertices.position, m.vertices.cells, m.cells.position)
+    check_if_counter_clockwise(m.sphere_radius, m.vertices.cells, m.cells.position)
 vertex_cells_inverted(m::AbstractVoronoiMesh{false}) =
-    check_if_counter_clockwise(m.vertices.position, m.vertices.cells, m.cells.position, m.x_period, m.y_period)
+    check_if_counter_clockwise(m.vertices.cells, m.cells.position, m.x_period, m.y_period)
 
 """
     fix_ordering!(m::AbstractVoronoiMesh) -> m
