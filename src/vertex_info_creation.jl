@@ -29,14 +29,14 @@ function compute_kite_areas_periodic!(output, cpos, vpos, cellsOnVertex, xp, yp)
             c23_pos = 0.5 * (c2_pos + c3_pos)
             c31_pos = 0.5 * (c3_pos + c1_pos)
 
-            a1_1 = area(c1_pos, c12_pos, v_pos)
-            a1_2 = area(c1_pos, v_pos, c31_pos)
+            a1_1 = signed_area(c1_pos, c12_pos, v_pos)
+            a1_2 = signed_area(c1_pos, v_pos, c31_pos)
 
-            a2_1 = area(c2_pos, c23_pos, v_pos)
-            a2_2 = area(c2_pos, v_pos, c12_pos)
+            a2_1 = signed_area(c2_pos, c23_pos, v_pos)
+            a2_2 = signed_area(c2_pos, v_pos, c12_pos)
 
-            a3_1 = area(c3_pos, c31_pos, v_pos)
-            a3_2 = area(c3_pos, v_pos, c23_pos)
+            a3_1 = signed_area(c3_pos, c31_pos, v_pos)
+            a3_2 = signed_area(c3_pos, v_pos, c23_pos)
 
             output[v] = (a1_1 + a1_2, a2_1 + a2_2, a3_1 + a3_2)
         end
@@ -59,14 +59,14 @@ function compute_kite_areas_spherical!(output, cpos, vpos, cellsOnVertex, R)
             c23_pos = arc_midpoint(R, c2_pos, c3_pos)
             c31_pos = arc_midpoint(R, c3_pos, c1_pos)
 
-            a1_1 = spherical_polygon_area(R, c1_pos, c12_pos, v_pos)
-            a1_2 = spherical_polygon_area(R, c1_pos, v_pos, c31_pos)
+            a1_1 = signed_spherical_polygon_area(R, c1_pos, c12_pos, v_pos)
+            a1_2 = signed_spherical_polygon_area(R, c1_pos, v_pos, c31_pos)
 
-            a2_1 = spherical_polygon_area(R, c2_pos, c23_pos, v_pos)
-            a2_2 = spherical_polygon_area(R, c2_pos, v_pos, c12_pos)
+            a2_1 = signed_spherical_polygon_area(R, c2_pos, c23_pos, v_pos)
+            a2_2 = signed_spherical_polygon_area(R, c2_pos, v_pos, c12_pos)
 
-            a3_1 = spherical_polygon_area(R, c3_pos, c31_pos, v_pos)
-            a3_2 = spherical_polygon_area(R, c3_pos, v_pos, c23_pos)
+            a3_1 = signed_spherical_polygon_area(R, c3_pos, c31_pos, v_pos)
+            a3_2 = signed_spherical_polygon_area(R, c3_pos, v_pos, c23_pos)
 
             output[v] = (a1_1 + a1_2, a2_1 + a2_2, a3_1 + a3_2)
         end

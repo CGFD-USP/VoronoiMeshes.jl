@@ -217,7 +217,7 @@ end
             getproperty(mesh.edges, p);
         end
 
-        save("test_save.nc", mesh; force3D=true, write_computed=true)
+        VoronoiMeshes.save("test_save.nc", mesh; force3D=true, write_computed=true)
         test_mesh = VoronoiMesh("test_save.nc");
 
         for p in Base.propertynames(mesh.cells)
@@ -252,7 +252,7 @@ end
 @testset "Save and read from VTU" begin
     mesh = VoronoiMesh(VoronoiDiagram("mesh_distorted.nc"))
 
-    save("test_save.vtu", mesh)
+    VoronoiMeshes.save("test_save.vtu", mesh)
 
     test_mesh = VoronoiMesh("test_save.vtu");
 
@@ -276,7 +276,7 @@ end
     d1 = VoronoiDiagram("mesh_distorted.nc")
 
     #scale before creating the edges for the VoronoiMesh
-    mesh1 = VoronoiMesh(scale!(d1, factor))
+    mesh1 = VoronoiMesh(VoronoiMeshes.scale!(d1, factor))
 
     mesh2 = VoronoiMesh(VoronoiDiagram("mesh_distorted.nc"))
 
@@ -298,7 +298,7 @@ end
     end
 
     #Then scale
-    scale!(mesh2, factor)
+    VoronoiMeshes.scale!(mesh2, factor)
 
     @test mesh2.x_period ≈ factor*xpo
     @test mesh2.y_period ≈ factor*ypo
@@ -320,7 +320,7 @@ end
     d1 = VoronoiDiagram("spherical_grid_500km.nc")
 
     #scale before creating the edges for the VoronoiMesh
-    mesh1 = VoronoiMesh(scale!(d1, factor))
+    mesh1 = VoronoiMesh(VoronoiMeshes.scale!(d1, factor))
 
     @test mesh1.sphere_radius ≈ factor
 
@@ -340,7 +340,7 @@ end
     end
 
     #Then scale
-    scale!(mesh2, factor)
+    VoronoiMeshes.scale!(mesh2, factor)
 
     @test mesh2.sphere_radius ≈ factor
 
